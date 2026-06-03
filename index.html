@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대한민국 산업화 주식레이스</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;700;900&display=swap');
+        body { font-family: 'Gothic A1', sans-serif; background-color: #f3f4f6; }
+        @media print {
+            .no-print { display: none !important; }
+            .print-area { display: block !important; width: 210mm; }
+            body { background-color: #ffffff; color: #000000; }
+        }
+        @keyframes scrollUp {
+            0% { transform: translateY(80%); }
+            100% { transform: translateY(-110%); }
+        }
+        .credit-scroll { animation: scrollUp 22s linear forwards; }
+    </style>
+</head>
+<body class="text-gray-800 antialiased">
+
+    <div id="view-login" class="min-h-screen flex items-center justify-center bg-slate-900 px-4">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
+            <h1 class="text-2xl font-black text-center text-slate-800 mb-2">📊 주식레이스 로그인</h1>
+            <p class="text-xs text-center text-slate-500 mb-6">자신의 닉네임을 선택하고 비밀번호를 입력하세요.</p>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">개미 별명 선택</label>
+                    <select id="login-user" class="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+                        <option value="">-- 내 별명을 선택하세요 --</option>
+                        <option value="admin">💻 선생님 (교사용 관리자)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">비밀번호 (4자리)</label>
+                    <input type="password" id="login-pw" maxlength="4" placeholder="••••" class="w-full p-3 border border-gray-300 rounded-xl text-center text-xl tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-3.5 rounded-xl transition shadow-lg shadow-blue-200">입장하기</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-student" class="hidden min-h-screen bg-gray-50 pb-12">
+        <header class="bg-white border-b border-gray-200 sticky top-0 z-10 no-print">
+            <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+                <div>
+                    <span id="stu-name" class="font-black text-lg text-blue-600">🐜 개미</span>
+                    <span class="text-gray-400 mx-2">|</span>
+                    <span id="stu-current-round" class="font-bold text-gray-700">기다리는 중...</span>
+                </div>
+                <button onclick="logout()" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold px-3 py-1.5 rounded-lg transition">로그아웃</button>
+            </div>
+        </header>
+
+        <main class="max-w-4xl mx-auto px-4 mt-6 space-y-6">
+            <div id="stu-waiting-screen" class="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center space-y-3">
+                <div class="inline-block p-4 bg-amber-50 rounded-full text-amber-500 animate-pulse">⏳</div>
+                <h3 class="text-xl font-bold text-gray-800">선생님이 투자창을 열 때까지 대기 중입니다</h3>
+                <p class="text-sm text-gray-500">배부된 학습지 경제 신문을 꼼꼼히 읽고 투자할 기업을 분석해 두세요!</p>
+                
+                <div class="pt-6 border-t border-gray-100 text-left">
+                    <h4 class="text-sm font-bold text-gray-700 mb-3">📈 나의 연도별 자산 흐름 기록</h4>
+                    <div class="bg-gray-50 rounded-xl p-4 overflow-hidden border border-gray-200">
+                        <table class="w-full text-sm text-center">
+                            <thead>
+                                <tr class="text-gray-400 text-xs border-b border-gray-200">
+                                    <th class="pb-2">라운드</th>
+                                    <th class="pb-2">시대구분</th>
+                                    <th class="pb-2 text-right">최종 결과 자산</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stu-history-tbody" class="divide-y divide-gray-100 font-medium">
+                                <tr>
+                                    <td colspan="3" class="pt-3 text-xs text-gray-400 text-center">아직 진행된 라운드가 없습니다.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="stu-investment-screen" class="hidden space-y-6">
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+                        <p class="text-xs text-gray-400 font-bold">이번 라운드 시작 투자금 (시드머니)</p>
+                        <p id="stu-seed-money" class="text-2xl font-black text-slate-800 mt-1">300,000원</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+                        <p class="text-xs text-gray-400 font-bold">투자 후 최종 남는 현금</p>
+                        <p id="stu-remain-money" class="text-2xl font-black text-emerald-600 mt-1">300,000원</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="font-bold text-gray-800">🏦 국가 보장 저축통장 은행 예치</h4>
+                            <p class="text-xs text-slate-400 mt-0.5">이번 라운드 확정 우대 금리: <span id="stu-bank-rate" class="text-amber-500 font-bold">0%</span></p>
+                        </div>
+                        <button onclick="allocateAllToBank()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-lg transition">잔액 전부 저축</button>
+                    </div>
+                    <input type="number" id="stu-bank-input" oninput="calculateRemaining()" placeholder="저축할 금액 입력" class="w-full p-3 border border-gray-300 rounded-xl font-bold text-right focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="bg-slate-800 px-5 py-3.5 flex justify-between text-white text-sm font-bold">
+                        <span>📊 투자 가능 기업 목록</span>
+                        <span>현재 주당 가격</span>
+                    </div>
+                    <div id="stu-stock-list" class="divide-y divide-gray-100">
+                        </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 space-y-4 text-center">
+                    <label class="inline-flex items-center justify-center space-x-3 cursor-pointer bg-slate-50 p-3 rounded-xl w-full border border-gray-100">
+                        <input type="checkbox" id="stu-pledge" onchange="toggleSubmitButton()" class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                        <span class="text-xs sm:text-sm font-medium text-gray-600 select-none text-left">⚠️ 무분별한 투기는 안 되며, 경제 신문 요약을 바탕으로 분석하여 투자해야 함에 동의합니다.</span>
+                    </label>
+                    <button id="stu-submit-btn" disabled onclick="submitInvestment()" class="w-full bg-slate-300 text-white font-bold py-4 rounded-xl transition cursor-not-allowed text-lg shadow-md">이번 라운드 포트폴리오 최종 제출</button>
+                </div>
+            </div>
+
+            <div id="stu-result-waiting" class="hidden bg-white p-8 rounded-2xl shadow-sm border border-gray-200 text-center space-y-3">
+                <div class="inline-block p-4 bg-emerald-50 rounded-full text-emerald-500">✓</div>
+                <h3 class="text-xl font-bold text-gray-800">투자 포트폴리오 제출 완료!</h3>
+                <p class="text-sm text-gray-500">친구들이 입력을 마칠 때까지 기다린 후, 선생님의 결과 공개 화면을 확인하세요.</p>
+            </div>
+        </main>
+    </div>
+
+    <div id="view-teacher" class="hidden min-h-screen bg-slate-900 text-slate-100 p-6 no-print">
+        <header class="max-w-7xl mx-auto flex justify-between items-center border-b border-slate-800 pb-5 mb-6">
+            <div>
+                <h1 class="text-2xl font-black text-white">💻 주식레이스 관리 대시보드</h1>
+                <p class="text-xs text-slate-400 mt-1">대형 전자칠판 및 실시간 Whalebook 통제 시스템</p>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="preparePrintData()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold text-sm px-4 py-2 rounded-xl transition">🖨️ A4 결과 인쇄 모드</button>
+                <button onclick="logout()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm px-4 py-2 rounded-xl transition">종료</button>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto grid grid-cols-3 gap-6">
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 space-y-4 h-fit">
+                <h3 class="font-bold text-lg text-white border-b border-slate-700 pb-2">🎯 라운드 및 잠금 제어</h3>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 mb-1">진행할 라운드 선택</label>
+                    <select id="tea-round-select" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-xl font-bold text-white focus:outline-none focus:border-blue-500">
+                        <option value="0">대기 모드 (잠금)</option>
+                        <option value="1">1라운드 (1960년대)</option>
+                        <option value="2">2라운드 (1970년대)</option>
+                        <option value="3">3라운드 (1980년대)</option>
+                        <option value="4">4라운드 (1990년대)</option>
+                        <option value="5">5라운드 (IMF 시대)</option>
+                        <option value="6">6라운드 (2000년대)</option>
+                        <option value="7">7라운드 (2010년대)</option>
+                        <option value="8">8라운드 (코로나시대)</option>
+                        <option value="9">9라운드 (현대/포스트코로나)</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3 pt-2">
+                    <button onclick="updateSystemStatus('investing')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded-xl transition">🔓 투자창 열기</button>
+                    <button onclick="updateSystemStatus('revealed')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold p-3 rounded-xl transition">👁️ 결과 대공개</button>
+                </div>
+                <div class="text-xs text-slate-400 bg-slate-900/50 p-3 rounded-xl space-y-1">
+                    <p>• <b>투자창 열기:</b> 미제출 상태로 리셋되며 학생들이 금액 입력을 시작합니다.</p>
+                    <p>• <b>결과 대공개:</b> 순위가 영화 크레딧 모드로 변환 정산되어 송출됩니다.</p>
+                </div>
+                <button onclick="resetWholeGame()" class="w-full bg-slate-700 hover:bg-rose-900 text-[11px] text-slate-400 hover:text-white transition p-2 rounded-xl mt-4">🔄 전체 데이터 전면 초기화 (주의)</button>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700 col-span-2 space-y-4">
+                <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+                    <h3 class="font-bold text-lg text-white">🟢 실시간 포트폴리오 제출 현황</h3>
+                    <span id="tea-submit-count" class="text-xs bg-slate-700 px-3 py-1 rounded-full text-blue-400 font-bold">0 / 16명 제출</span>
+                </div>
+                <div id="tea-student-grid" class="grid grid-cols-4 gap-3">
+                    </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="view-credit" class="hidden fixed inset-0 bg-black z-50 flex items-center justify-center overflow-hidden">
+        <button onclick="closeCredit()" class="absolute top-5 right-5 z-50 text-white bg-slate-800 px-4 py-2 rounded-xl text-xs font-bold no-print">X 대시보드로 돌아가기</button>
+        <div id="credit-container" class="relative text-center text-white w-full max-w-2xl font-bold space-y-8 credit-scroll">
+            </div>
+    </div>
+
+    <div id="print-area" class="hidden print-area p-8 bg-white text-black mx-auto">
+        <h1 class="text-2xl font-black text-center border-b-4 border-black pb-3 mb-6" id="print-title">주식레이스 라운드 정산 보고서</h1>
+        <table class="w-full text-sm border-collapse border border-gray-400 text-center">
+            <thead>
+                <tr class="bg-gray-100">
+                    <th class="border border-gray-400 p-2">순위</th>
+                    <th class="border border-gray-400 p-2">개미 별명</th>
+                    <th class="border border-gray-400 p-2 text-right">최종 자산 금액</th>
+                </tr>
+            </thead>
+            <tbody id="print-tbody">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // --- [데이터 셋] 1~9 라운드 완벽 주가 동기화 데이터 ---
+        const gameData = {
+            1: { name: "1라운드 (1960년대)", interest: 0.30, stocks: { "D그룹": 100000, "S정유": 50000, "H시멘트": 20000, "K의류": 10000, "H자동차": 30000, "A조선": 5000, "P철강": 5000 }, nextPrices: { "D그룹": 180000, "S정유": 125000, "H시멘트": 50000, "K의류": 30000, "H자동차": 75000, "A조선": 12500, "P철강": 10000 } },
+            2: { name: "2라운드 (1970년대)", interest: 0.25, stocks: { "D그룹": 180000, "S정유": 125000, "H시멘트": 50000, "K의류": 30000, "H자동차": 75000, "A조선": 12500, "P철강": 10000 }, nextPrices: { "D그룹": 270000, "S정유": 250000, "H시멘트": 60000, "K의류": 40000, "H자동차": 150000, "A조선": 30000, "P철강": 40000 } },
+            3: { name: "3라운드 (1980년대)", interest: 0.20, stocks: { "D그룹": 270000, "S정유": 250000, "H시멘트": 60000, "K의류": 40000, "H자동차": 150000, "A조선": 30000, "P철강": 40000, "S전자": 150000 }, nextPrices: { "D그룹": 350000, "S정유": 325000, "H시멘트": 75000, "K의류": 50000, "H자동차": 225000, "A조선": 37000, "P철강": 60000, "S전자": 225000 } },
+            4: { name: "4라운드 (1990년대)", interest: 0.15, stocks: { "D그룹": 350000, "S정유": 325000, "H시멘트": 75000, "K의류": 50000, "H자동차": 225000, "A조선": 37000, "P철강": 60000, "S전자": 225000 }, nextPrices: { "D그룹": 385000, "S정유": 390000, "H시멘트": 82000, "K의류": 53000, "H자동차": 300000, "A조선": 50000, "P철강": 72000, "S전자": 315000 } },
+            5: { name: "5라운드 (IMF 시대)", interest: 0.10, stocks: { "D그룹": 385000, "S정유": 390000, "H시멘트": 82000, "K의류": 53000, "H자동차": 300000, "A조선": 50000, "P철강": 72000, "S전자": 315000, "N게임": 40000, "N인터넷": 40000, "C메신저": 10000 }, nextPrices: { "D그룹": 0, "S정유": 300000, "H시멘트": 24000, "K의류": 30000, "H자동차": 175000, "A조선": 30000, "P철강": 50000, "S전자": 220000, "N게임": 20000, "N인터넷": 20000, "C메신저": 5000 } },
+            6: { name: "2000년대 (6라운드)", interest: 0.05, stocks: { "S정유": 300000, "H시멘트": 24000, "K의류": 30000, "H자동차": 175000, "A조선": 30000, "P철강": 50000, "S전자": 220000, "N게임": 20000, "N인터넷": 20000, "C메신저": 5000, "Y엔터": 40000 }, nextPrices: { "S정유": 400000, "H시멘트": 27000, "K의류": 35000, "H자동차": 250000, "A조선": 50000, "P철강": 70000, "S전자": 460000, "N게임": 30000, "N인터넷": 28000, "C메신저": 7000, "Y엔터": 80000 } },
+            7: { name: "2010년대 (7라운드)", interest: 0.01, stocks: { "S정유": 400000, "H시멘트": 27000, "K의류": 35000, "H자동차": 250000, "A조선": 50000, "P철강": 70000, "S전자": 460000, "N게임": 28000, "N인터넷": 30000, "C메신저": 7000, "Y엔터": 80000 }, nextPrices: { "S정유": 365000, "H시멘트": 24000, "K의류": 38000, "H자동차": 300000, "A조선": 40000, "P철강": 60000, "S전자": 550000, "N게임": 30000, "N인터넷": 25000, "C메신저": 7000, "Y엔터": 90000 } },
+            8: { name: "코로나시대 (8라운드)", interest: 0.00, stocks: { "S정유": 365000, "H시멘트": 24000, "K의류": 38000, "H자동차": 300000, "A조선": 40000, "P철강": 60000, "S전자": 550000, "N게임": 30000, "N인터넷": 25000, "C메신저": 7000, "Y엔터": 90000 }, nextPrices: { "S정유": 385000, "H시멘트": 26000, "K의류": 49000, "H자동차": 390000, "A조선": 48000, "P철강": 72000, "S전자": 660000, "N게임": 42000, "N인터넷": 38000, "C메신저": 9000, "Y엔터": 117000 } },
+            9: { name: "현대/포스트코로나 (9라운드)", interest: 0.03, stocks: { "S정유": 385000, "H시멘트": 26000, "K의류": 49000, "H자동차": 390000, "A조선": 48000, "P철강": 72000, "S전자": 660000, "N게임": 42000, "N인터넷": 38000, "C메신저": 9000, "Y엔터": 117000 }, nextPrices: { "S정유": 501000, "H시멘트": 31000, "K의류": 44000, "H자동차": 546000, "A조선": 43000, "P철강": 86000, "S전자": 858000, "N게임": 50000, "N인터넷": 46000, "C메신저": 11000, "Y엔터": 140000 } }
+        };
+
+        // --- [학생 명단] 개미 영화관 암호 동기화 ---
+        const userRegistry = {
+            "1": { name: "1🐜개미물곰", pin: "9852" },
+            "2": { name: "🐜쟈스민갬", pin: "7251" },
+            "3": { name: "3🐜빼빼개미", pin: "8982" },
+            "4": { name: "4🐜문어개미", pin: "5627" },
+            "5": { name: "5🐜우유개미", pin: "2474" },
+            "6": { name: "6🐜갬", pin: "4283" },
+            "7": { name: "7🐜大中개미", pin: "3269" },
+            "8": { name: "51🐜다개미", pin: "3581" },
+            "9": { name: "52🐜담개미", pin: "6113" },
+            "10": { name: "53🐜현개미", pin: "1317" },
+            "11": { name: "54🐜민갬", pin: "7384" },
+            "12": { name: "55🐜닥개미", pin: "8853" },
+            "13": { name: "56🐜원개미", pin: "6350" },
+            "14": { name: "57🐜챙갬", pin: "3879" },
+            "15": { name: "58🐜R개미", pin: "2100" },
+            "16": { name: "59🐜소은갬", pin: "6556" }
+        };
+
+        // --- [Firebase] 선생님 전용 실시간 발급 Config 자동 셋인 완료 ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCxurzVJeqvp6W6uFnUwq78-v86eH47CvU",
+            authDomain: "ant-stock-race-9fd96.firebaseapp.com",
+            databaseURL: "https://ant-stock-race-9fd96-default-rtdb.firebaseio.com",
+            projectId: "ant-stock-race-9fd96",
+            storageBucket: "ant-stock-race-9fd96.firebasestorage.app",
+            messagingSenderId: "398735510946",
+            appId: "1:398735510946:web:7dd24a999289ea89f076fb",
+            measurementId: "G-B3EDJ74RR0"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        let currentUser = null;
+        let currentRole = null;
+        let globalSystemState = { round: 0, status: 'closed' };
+        let localBalances = {};
+        let activeSeed = 300000;
+
+        window.onload = function() {
+            const selectEl = document.getElementById('login-user');
+            for (let id in userRegistry) {
+                let opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = userRegistry[id].name;
+                selectEl.appendChild(opt);
+            }
+            setupRealtimeSync();
+        };
+
+        function setupRealtimeSync() {
+            db.ref('systemState').on('value', (snapshot) => {
+                const val = snapshot.val();
+                if (val) {
+                    globalSystemState = val;
+                    syncUIByState();
+                }
+            });
+            db.ref('balances').on('value', (snapshot) => {
+                const val = snapshot.val();
+                localBalances = val || {};
+                if (currentRole === 'teacher') renderTeacherDashboard();
+                if (currentRole === 'student') renderStudentHistory();
+            });
+        }
+
+        function handleLogin() {
+            const userKey = document.getElementById('login-user').value;
+            const inputPw = document.getElementById('login-pw').value;
+
+            if (!userKey) return alert("사용자를 선택해 주세요.");
+            
+            if (userKey === 'admin') {
+                if (inputPw === '0000') { // 선생님 마스터 패스워드
+                    currentRole = 'teacher';
+                    switchView('view-teacher');
+                    renderTeacherDashboard();
+                } else { alert("선생님 비밀번호가 일치하지 않습니다."); }
+            } else {
+                const target = userRegistry[userKey];
+                if (target && target.pin === inputPw) {
+                    currentUser = target;
+                    currentRole = 'student';
+                    switchView('view-student');
+                    document.getElementById('stu-name').textContent = target.name;
+                    renderStudentHistory();
+                    syncUIByState();
+                } else { alert("비밀번호가 올바르지 않습니다."); }
+            }
+        }
+
+        function switchView(viewId) {
+            document.getElementById('view-login').classList.add('hidden');
+            document.getElementById('view-student').classList.add('hidden');
+            document.getElementById('view-teacher').classList.add('hidden');
+            document.getElementById(viewId).classList.remove('hidden');
+        }
+
+        function syncUIByState() {
+            if (currentRole !== 'student') return;
+            const round = globalSystemState.round;
+            const status = globalSystemState.status;
+
+            document.getElementById('stu-current-round').textContent = round > 0 ? `${gameData[round].name} 진입` : "레이스 준비 중";
+            
+            const waitingScreen = document.getElementById('stu-waiting-screen');
+            const investScreen = document.getElementById('stu-investment-screen');
+            const resultWaiting = document.getElementById('stu-result-waiting');
+
+            // 동시 상태 제어 조건식
+            if (round === 0 || status === 'closed') {
+                waitingScreen.classList.remove('hidden');
+                investScreen.classList.add('hidden');
+                resultWaiting.classList.add('hidden');
+            } else if (status === 'investing') {
+                // 이미 해당 라운드에 완료 버튼을 눌렀는지 검출
+                const isDone = localBalances[currentUser.name] && localBalances[currentUser.name].submitted;
+                if (isDone) {
+                    waitingScreen.classList.add('hidden');
+                    investScreen.classList.add('hidden');
+                    resultWaiting.classList.remove('hidden');
+                } else {
+                    waitingScreen.classList.add('hidden');
+                    investScreen.classList.remove('hidden');
+                    resultWaiting.classList.add('hidden');
+                    initStudentRoundUI(round);
+                }
+            } else if (status === 'revealed') {
+                waitingScreen.classList.remove('hidden');
+                investScreen.classList.add('hidden');
+                resultWaiting.classList.add('hidden');
+                document.getElementById('stu-current-round').textContent = "결과 정산 중 (전자칠판 화면을 보세요)";
+            }
+        }
+
+        function renderStudentHistory() {
+            const tbody = document.getElementById('stu-history-tbody');
+            tbody.innerHTML = "";
+            const myRecord = localBalances[currentUser?.name];
+            
+            if (!myRecord || !myRecord.history) {
+                tbody.innerHTML = `<tr><td colspan="3" class="pt-3 text-xs text-gray-400 text-center">아직 진행된 자산 기록이 없습니다.</td></tr>`;
+                return;
+            }
+
+            for (let r = 1; r <= 9; r++) {
+                if (myRecord.history[r] !== undefined) {
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b border-gray-50 text-xs text-slate-600";
+                    tr.innerHTML = `
+                        <td class="py-2.5 font-bold">${r}R</td>
+                        <td class="py-2.5 text-left">${gameData[r].name.split(' ')[1]}</td>
+                        <td class="py-2.5 text-right font-black text-blue-600">${myRecord.history[r].toLocaleString()}원</td>
+                    `;
+                    tbody.appendChild(tr);
+                }
+            }
+        }
+
+        function initStudentRoundUI(round) {
+            const rData = gameData[round];
+            // 1라운드는 무조건 30만 원 스타트, 그 이후 라운드는 전 라운드 최종 금액을 동적으로 계승
+            if (round === 1) {
+                activeSeed = 300000;
+            } else {
+                activeSeed = (localBalances[currentUser.name] && localBalances[currentUser.name].netWorth) || 300000;
+            }
+            
+            document.getElementById('stu-seed-money').textContent = activeSeed.toLocaleString() + "원";
+            document.getElementById('stu-bank-rate').textContent = (rData.interest * 100) + "%";
+            document.getElementById('stu-bank-input').value = "";
+            document.getElementById('stu-pledge').checked = false;
+            document.getElementById('stu-submit-btn').disabled = true;
+
+            const container = document.getElementById('stu-stock-list');
+            container.innerHTML = "";
+
+            for (let comp in rData.stocks) {
+                const price = rData.stocks[comp];
+                if (price === 0) continue; // IMF 등 상장폐지 처리
+
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center px-5 py-4 hover:bg-slate-50 transition";
+                div.innerHTML = `
+                    <div>
+                        <p class="font-bold text-gray-800">${comp}</p>
+                        <p class="text-[11px] text-slate-400 mt-0.5">보유가능 최대치: <span class="font-bold text-blue-500">${Math.floor(activeSeed/price)}</span>주</p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-sm font-black text-slate-700 mr-2">${price.toLocaleString()}원</span>
+                        <div class="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                            <button onclick="adjustQty('${comp}', -1)" class="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 font-bold text-gray-500 text-sm">-</button>
+                            <input type="number" id="qty-${comp}" value="0" min="0" oninput="calculateRemaining()" class="w-12 text-center font-bold text-sm focus:outline-none bg-white border-none">
+                            <button onclick="adjustQty('${comp}', 1)" class="px-2.5 py-1 bg-gray-50 hover:bg-gray-100 font-bold text-gray-500 text-sm">+</button>
+                        </div>
+                        <button onclick="setMaxQty('${comp}', ${price})" class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-bold px-2 py-1.5 rounded-lg transition">MAX</button>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+            calculateRemaining();
+        }
+
+        function adjustQty(comp, delta) {
+            const input = document.getElementById(`qty-${comp}`);
+            let current = parseInt(input.value) || 0;
+            current += delta;
+            if (current < 0) current = 0;
+            input.value = current;
+            calculateRemaining();
+        }
+
+        function setMaxQty(comp, price) {
+            calculateRemaining();
+            const currentRemain = parseInt(document.getElementById('stu-remain-money').textContent.replace(/,/g, ''));
+            const input = document.getElementById(`qty-${comp}`);
+            const currentAllocated = (parseInt(input.value) || 0) * price;
+            const maxBuyable = Math.floor((currentRemain + currentAllocated) / price);
+            input.value = maxBuyable;
+            calculateRemaining();
+        }
+
+        function calculateRemaining() {
+            let spent = 0;
+            const round = globalSystemState.round;
+            const rData = gameData[round];
+
+            for (let comp in rData.stocks) {
+                const input = document.getElementById(`qty-${comp}`);
+                if (input) {
+                    spent += (parseInt(input.value) || 0) * rData.stocks[comp];
+                }
+            }
+
+            const bankVal = parseInt(document.getElementById('stu-bank-input').value) || 0;
+            spent += bankVal;
+
+            const remain = activeSeed - spent;
+            const remainEl = document.getElementById('stu-remain-money');
+            remainEl.textContent = remain.toLocaleString() + "원";
+
+            if (remain < 0) {
+                remainEl.className = "text-2xl font-black text-rose-600 mt-1";
+                document.getElementById('stu-submit-btn').disabled = true;
+            } else {
+                remainEl.className = "text-2xl font-black text-emerald-600 mt-1";
+                toggleSubmitButton();
+            }
+        }
+
+        function allocateAllToBank() {
+            calculateRemaining();
+            const currentRemain = parseInt(document.getElementById('stu-remain-money').textContent.replace(/,/g, ''));
+            const bankInput = document.getElementById('stu-bank-input');
+            const existBank = parseInt(bankInput.value) || 0;
+            bankInput.value = existBank + currentRemain;
+            calculateRemaining();
+        }
+
+        function toggleSubmitButton() {
+            const pledge = document.getElementById('stu-pledge').checked;
+            const remain = parseInt(document.getElementById('stu-remain-money').textContent.replace(/,/g, ''));
+            const btn = document.getElementById('stu-submit-btn');
+
+            if (pledge && remain >= 0) {
+                btn.disabled = false;
+                btn.className = "w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition text-lg shadow-lg cursor-pointer";
+            } else {
+                btn.disabled = true;
+                btn.className = "w-full bg-slate-300 text-white font-bold py-4 rounded-xl transition cursor-not-allowed text-lg shadow-md";
+            }
+        }
+
+        function submitInvestment() {
+            const round = globalSystemState.round;
+            const rData = gameData[round];
+            let nextNetWorth = 0;
+
+            const bankVal = parseInt(document.getElementById('stu-bank-input').value) || 0;
+            nextNetWorth += bankVal * (1 + rData.interest);
+
+            for (let comp in rData.stocks) {
+                const input = document.getElementById(`qty-${comp}`);
+                if (input) {
+                    const qty = parseInt(input.value) || 0;
+                    const nextPrice = rData.nextPrices[comp] !== undefined ? rData.nextPrices[comp] : rData.stocks[comp];
+                    nextNetWorth += qty * nextPrice;
+                }
+            }
+
+            const leftover = parseInt(document.getElementById('stu-remain-money').textContent.replace(/,/g, ''));
+            nextNetWorth += leftover;
+            
+            // 소수점 절사 (단수 처리)
+            const finalNetWorth = Math.floor(nextNetWorth);
+
+            // Firebase 실시간 업데이트 구조 설계
+            const userRef = db.ref(`balances/${currentUser.name}`);
+            userRef.child('submitted').set(true);
+            userRef.child('netWorth').set(finalNetWorth);
+            userRef.child(`history/${round}`).set(finalNetWorth).then(() => {
+                syncUIByState();
+            });
+        }
+
+        // --- 교사용 제어 로직 ---
+        function updateSystemStatus(status) {
+            const selectRound = parseInt(document.getElementById('tea-round-select').value);
+            if (selectRound === 0) return alert("진행할 라운드를 먼저 선택해 주세요.");
+
+            if (status === 'investing') {
+                // 라운드가 열릴 때 16명 학생의 상태판 일괄 초기화
+                for (let id in userRegistry) {
+                    db.ref(`balances/${userRegistry[id].name}/submitted`).set(false);
+                    // 1라운드면 자산도 30만 원으로 일괄 초기화 세팅
+                    if (selectRound === 1) {
+                        db.ref(`balances/${userRegistry[id].name}/netWorth`).set(300000);
+                        db.ref(`balances/${userRegistry[id].name}/history`).set(null);
+                    }
+                }
+            }
+
+            db.ref('systemState').set({ round: selectRound, status: status }).then(() => {
+                if (status === 'revealed') triggerCreditScroll();
+            });
+        }
+
+        function renderTeacherDashboard() {
+            const roundSelect = document.getElementById('tea-round-select');
+            if(document.activeElement !== roundSelect) {
+                roundSelect.value = globalSystemState.round;
+            }
+            
+            const grid = document.getElementById('tea-student-grid');
+            grid.innerHTML = "";
+
+            let submittedCount = 0;
+            let totalStudents = Object.keys(userRegistry).length;
+
+            for (let id in userRegistry) {
+                const name = userRegistry[id].name;
+                const record = localBalances[name] || { submitted: false, netWorth: 300000 };
+                if (record.submitted) submittedCount++;
+
+                const card = document.createElement('div');
+                card.className = `p-4 rounded-xl border font-bold text-center transition shadow-sm ${record.submitted ? 'bg-emerald-950 border-emerald-500 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-400'}`;
+                card.innerHTML = `
+                    <p class="text-sm">${name}</p>
+                    <p class="text-xs text-slate-400 mt-1">자산: ${(record.netWorth || 300000).toLocaleString()}원</p>
+                    <span class="inline-block text-[10px] px-2 py-0.5 mt-2 rounded-md ${record.submitted ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700 text-slate-500'}">
+                        ${record.submitted ? '제출 완료' : '의사결정 중'}
+                    </span>
+                `;
+                grid.appendChild(card);
+            }
+            document.getElementById('tea-submit-count').textContent = `${submittedCount} / ${totalStudents} 명 제출 완료`;
+        }
+
+        function triggerCreditScroll() {
+            const view = document.getElementById('view-credit');
+            const container = document.getElementById('credit-container');
+            view.classList.remove('hidden');
+            
+            const round = globalSystemState.round;
+            container.innerHTML = `
+                <div class="space-y-2 mb-8">
+                    <h2 class='text-4xl font-black text-amber-400'>🎬 ${gameData[round].name} 결과 대공개</h2>
+                    <p class='text-sm text-slate-400 font-medium'>최종 정산이 끝난 자산 리더보드 순위가 업로드됩니다.</p>
+                </div>
+            `;
+
+            let sorted = [];
+            for (let id in userRegistry) {
+                let name = userRegistry[id].name;
+                let data = localBalances[name] || { netWorth: 300000 };
+                sorted.push({ name: name, netWorth: data.netWorth });
+            }
+            sorted.sort((a, b) => b.netWorth - a.netWorth);
+
+            sorted.forEach((item, index) => {
+                let medal = index === 0 ? "👑 " : index === 1 ? "🥈 " : index === 2 ? "🥉 " : "🐜 ";
+                let div = document.createElement('div');
+                div.className = "text-xl sm:text-2xl font-bold flex justify-between px-16 border-b border-white/10 pb-2 max-w-xl mx-auto";
+                div.innerHTML = `<span>${medal} ${index + 1}위 ${item.name}</span> <span class="text-emerald-400">${item.netWorth.toLocaleString()}원</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function preparePrintData() {
+            const round = globalSystemState.round;
+            if(round === 0) return alert("정산 데이터를 인쇄할 라운드를 먼저 실행해 주세요.");
+            
+            document.getElementById('print-title').textContent = `${gameData[round].name} 최종 결과 정산 보고서`;
+            const tbody = document.getElementById('print-tbody');
+            tbody.innerHTML = "";
+
+            let sorted = [];
+            for (let id in userRegistry) {
+                let name = userRegistry[id].name;
+                let data = localBalances[name] || { netWorth: 300000 };
+                sorted.push({ name: name, netWorth: data.netWorth });
+            }
+            sorted.sort((a, b) => b.netWorth - a.netWorth);
+
+            sorted.forEach((item, index) => {
+                let tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="border border-gray-400 p-2 font-bold">${index + 1}위</td>
+                    <td class="border border-gray-400 p-2">${item.name}</td>
+                    <td class="border border-gray-400 p-2 text-right font-bold">${item.netWorth.toLocaleString()}원</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            window.print();
+        }
+
+        function closeCredit() { document.getElementById('view-credit').classList.add('hidden'); }
+        function logout() { location.reload(); }
+        function resetWholeGame() {
+            if (confirm("정말로 모든 학생의 자산 기록 및 역사 데이터를 폭파하고 초기화하시겠습니까?")) {
+                db.ref('/').set(null).then(() => location.reload());
+            }
+        }
+    </script>
+</body>
+</html>
