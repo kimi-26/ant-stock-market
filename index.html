@@ -17,13 +17,14 @@
 
         @media print {
             .no-print { display: none !important; }
-            .print-area { display: block !important; width: 100%; font-size: 10pt; }
+            .print-area { display: block !important; width: 100%; font-size: 8pt; }
             body { background-color: #ffffff; color: #000000; margin: 0; }
             table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-            th, td { border: 1px solid #333; padding: 6px 4px; text-align: center; vertical-align: middle; }
-            th { background-color: #e5e7eb !important; font-weight: 900; -webkit-print-color-adjust: exact; }
-            .print-chart-container { width: 100%; height: 250px; margin-bottom: 20px; }
-            @page { size: A4 portrait; margin: 10mm; }
+            th, td { border: 1px solid #333; padding: 4px 2px; text-align: center; vertical-align: middle; word-break: keep-all; }
+            th { background-color: #e5e7eb !important; font-weight: 900; -webkit-print-color-adjust: exact; font-size: 8pt; }
+            td { font-size: 8pt; }
+            .print-chart-container { width: 100%; height: 200px; margin-bottom: 15px; }
+            @page { size: A4 landscape; margin: 10mm; }
         }
     </style>
 </head>
@@ -160,6 +161,11 @@
                 </div>
                 <div id="tea-student-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
             </div>
+
+            <div id="tea-stock-board" class="bg-slate-800 p-5 rounded-2xl border border-slate-700 lg:col-span-3 hidden mt-2">
+                <h3 class="font-bold text-white border-b border-slate-700 pb-2 mb-4">📊 <span id="tea-round-title"></span> 투자 전광판 (학생 안내용)</h3>
+                <div id="tea-stock-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-3"></div>
+            </div>
         </main>
     </div>
 
@@ -217,27 +223,17 @@
     </div>
 
     <div id="print-area" class="hidden print-area bg-white text-black">
-        <h1 id="print-title" style="font-size: 16pt; font-weight: 900; text-align: center; border-bottom: 3px solid #000; padding-bottom: 5px; margin-bottom: 15px;"></h1>
-        <h2 style="font-size: 11pt; font-weight: bold; margin-bottom: 5px;">[1] 시장 지표 요약</h2>
-        <table id="print-market-summary"></table>
+        <h1 id="print-title" style="font-size: 14pt; font-weight: 900; text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px;"></h1>
         <div class="print-chart-container">
             <canvas id="print-history-chart"></canvas>
         </div>
-        <h2 style="font-size: 11pt; font-weight: bold; margin-bottom: 5px;">[2] 개별 포트폴리오 및 자산 정산표</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 5%;">순위</th><th style="width: 12%;">별명</th><th style="width: 12%;">시작 시드머니</th>
-                    <th style="width: 35%;">매수 포트폴리오 (종목 및 수량)</th><th style="width: 12%;">은행 예치금</th>
-                    <th style="width: 10%;">수익률</th><th style="width: 14%;">최종 정산 자산</th>
-                </tr>
-            </thead>
-            <tbody id="print-tbody"></tbody>
+        <table id="print-full-table">
+            <thead id="print-full-thead"></thead>
+            <tbody id="print-full-tbody"></tbody>
         </table>
     </div>
 
     <script>
-        // --- 데이터 설정 (변경 없음) ---
         const gameData = {
             1: { name: "1라운드 (1960년대)", interest: 0.30, stocks: { "D그룹": 100000, "S정유": 50000, "H시멘트": 20000, "K의류": 10000, "H자동차": 30000, "A조선": 5000, "P철강": 5000 }, nextPrices: { "D그룹": 180000, "S정유": 125000, "H시멘트": 50000, "K의류": 30000, "H자동차": 75000, "A조선": 12500, "P철강": 10000 } },
             2: { name: "2라운드 (1970년대)", interest: 0.25, stocks: { "D그룹": 180000, "S정유": 125000, "H시멘트": 50000, "K의류": 30000, "H자동차": 75000, "A조선": 12500, "P철강": 10000 }, nextPrices: { "D그룹": 270000, "S정유": 250000, "H시멘트": 60000, "K의류": 40000, "H자동차": 150000, "A조선": 30000, "P철강": 40000 } },
@@ -249,6 +245,8 @@
             8: { name: "8라운드 (코로나시대)", interest: 0.00, stocks: { "S정유": 365000, "H시멘트": 24000, "K의류": 38000, "H자동차": 300000, "A조선": 40000, "P철강": 60000, "S전자": 550000, "N게임": 30000, "N인터넷": 25000, "C메신저": 7000, "Y엔터": 90000 }, nextPrices: { "S정유": 385000, "H시멘트": 26000, "K의류": 49000, "H자동차": 390000, "A조선": 48000, "P철강": 72000, "S전자": 660000, "N게임": 42000, "N인터넷": 38000, "C메신저": 9000, "Y엔터": 117000 } },
             9: { name: "9라운드 (현대)", interest: 0.03, stocks: { "S정유": 385000, "H시멘트": 26000, "K의류": 49000, "H자동차": 390000, "A조선": 48000, "P철강": 72000, "S전자": 660000, "N게임": 42000, "N인터넷": 38000, "C메신저": 9000, "Y엔터": 117000 }, nextPrices: { "S정유": 501000, "H시멘트": 31000, "K의류": 44000, "H자동차": 546000, "A조선": 43000, "P철강": 86000, "S전자": 858000, "N게임": 50000, "N인터넷": 46000, "C메신저": 11000, "Y엔터": 140000 } }
         };
+
+        const allCompaniesList = ["D그룹", "S정유", "H시멘트", "K의류", "H자동차", "A조선", "P철강", "S전자", "N게임", "N인터넷", "C메신저", "Y엔터"];
 
         const userRegistry = {
             "1": { name: "1🐜개미물곰", pin: "9852" }, "2": { name: "🐜쟈스민갬", pin: "7251" }, "3": { name: "3🐜빼빼개미", pin: "8982" }, "4": { name: "4🐜문어개미", pin: "5627" },
@@ -268,11 +266,10 @@
         function renderStockHistoryChart(canvasId, targetRound) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             let labels = ['시작']; for(let i=1; i<=targetRound; i++) labels.push(i+'R');
-            const companies = ["D그룹", "S정유", "H시멘트", "K의류", "H자동차", "A조선", "P철강", "S전자", "N게임", "N인터넷", "C메신저", "Y엔터"];
             const colors = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#475569', '#0284c7', '#ea580c', '#14b8a6', '#facc15', '#ec4899'];
             let datasets = [];
 
-            companies.forEach((comp, idx) => {
+            allCompaniesList.forEach((comp, idx) => {
                 let data = [null]; let active = false;
                 for(let r=1; r<=targetRound; r++) {
                     if(gameData[r].stocks[comp] !== undefined) { data.push(gameData[r].stocks[comp]); active = true; } 
@@ -312,7 +309,6 @@
 
         function switchView(viewId) { ['view-login', 'view-student', 'view-teacher'].forEach(id => document.getElementById(id).classList.add('hidden')); document.getElementById(viewId).classList.remove('hidden'); }
 
-        // --- 학생 화면 제어 (스포일러 차단 & 내역 표시 포함) ---
         function syncUIByState() {
             if (currentRole !== 'student') return;
             const round = globalSystemState.round; const status = globalSystemState.status;
@@ -322,13 +318,12 @@
                 waitScreen.classList.remove('hidden'); investScreen.classList.add('hidden');
                 document.getElementById('stu-submitted-portfolio').classList.add('hidden');
                 setWaitMessage("기다리는 중", "선생님이 다음 라운드를 열 때까지 대기하세요.", "⏳", true);
-                updateStudentChart(); // 차트 새로고침 유도
+                updateStudentChart(); 
             } else if (status === 'investing') {
                 if (localBalances[currentUser.name]?.submitted) {
                     waitScreen.classList.remove('hidden'); investScreen.classList.add('hidden');
                     setWaitMessage("제출 완료!", "다른 친구들이 끝날 때까지 대기해주세요.", "✅", false);
                     
-                    // 제출한 포트폴리오 요약 표시 (스포일러 방지)
                     const pf = localBalances[currentUser.name].portfolio; let pfHtml = "";
                     if(pf) {
                         if(pf.bank > 0) pfHtml += `<p>🏦 은행 저축: <span class="text-blue-600">${pf.bank.toLocaleString()}원</span></p>`;
@@ -337,7 +332,7 @@
                     }
                     document.getElementById('stu-submitted-content').innerHTML = pfHtml || "투자 내역 없음";
                     document.getElementById('stu-submitted-portfolio').classList.remove('hidden');
-                    updateStudentChart(); // 스포일러 방지 (업데이트 제한)
+                    updateStudentChart(); 
                 } else {
                     waitScreen.classList.add('hidden'); investScreen.classList.remove('hidden');
                     document.getElementById('stu-submitted-portfolio').classList.add('hidden');
@@ -348,7 +343,7 @@
                 waitScreen.classList.remove('hidden'); investScreen.classList.add('hidden');
                 document.getElementById('stu-submitted-portfolio').classList.add('hidden');
                 setWaitMessage("결과 공개 중", "전자칠판 화면을 주목하세요!", "🎬", false);
-                updateStudentChart(); // 이제 새로운 라운드 정보 노출 허용
+                updateStudentChart(); 
             }
         }
 
@@ -357,7 +352,6 @@
             const iconEl = document.getElementById('wait-icon'); iconEl.textContent = icon; pulse ? iconEl.classList.add('animate-pulse') : iconEl.classList.remove('animate-pulse');
         }
 
-        // 차트 스포일러 제한 알고리즘
         function initStudentChart() {
             const ctx = document.getElementById('studentAssetChart').getContext('2d');
             studentChart = new Chart(ctx, {
@@ -377,7 +371,6 @@
             const currentRound = globalSystemState.round; const status = globalSystemState.status;
             
             for(let r=1; r<=9; r++) {
-                // 핵심: 현재 진행중인 라운드는 'revealed' 상태가 아니면 그래프에 포함하지 않음 (스포일러 차단)
                 const isRevealed = (currentRound > r) || (currentRound === r && status === 'revealed');
                 if(!isRevealed) break; 
                 
@@ -389,7 +382,6 @@
             studentChart.data.datasets[0].data = myData; studentChart.data.datasets[1].data = avgData; studentChart.update();
         }
 
-        // --- 투자 화면 최적화 ---
         function initStudentRoundUI(round) {
             const rData = gameData[round];
             activeSeed = (round > 1 ? (localBalances[currentUser.name]?.history?.[round-1] || localBalances[currentUser.name]?.netWorth) : 300000) || 300000;
@@ -463,7 +455,7 @@
                 }
             }
             const leftover = parseInt(document.getElementById('stu-remain-money').textContent.replace(/,/g, ''));
-            pf.leftover = leftover; // 보관용
+            pf.leftover = leftover; 
             const finalNetWorth = bankResult + stockResult + leftover;
 
             db.ref(`balances/${currentUser.name}`).update({ submitted: true, netWorth: finalNetWorth, lastSeed: activeSeed, portfolio: pf })
@@ -471,7 +463,6 @@
               .then(() => syncUIByState());
         }
 
-        // --- 교사용 통제 (모달, 신호등) ---
         function updateSystemStatus(status) {
             const selectRound = parseInt(document.getElementById('tea-round-select').value); if(selectRound === 0) return alert("진행할 라운드를 선택해 주세요.");
             if (status === 'investing') {
@@ -484,7 +475,8 @@
         }
 
         function renderTeacherDashboard() {
-            document.getElementById('tea-round-select').value = globalSystemState.round;
+            const currentRound = globalSystemState.round;
+            document.getElementById('tea-round-select').value = currentRound;
             const grid = document.getElementById('tea-student-grid'); grid.innerHTML = "";
             let count = 0, total = Object.keys(userRegistry).length;
 
@@ -508,9 +500,26 @@
                 grid.appendChild(card);
             }
             document.getElementById('tea-submit-count').textContent = `${count} / ${total}명 완료`;
+            updateTeacherStockBoard(currentRound);
         }
 
-        // 교사 전용 개별 포트폴리오 열람 모달
+        function updateTeacherStockBoard(round) {
+            const board = document.getElementById('tea-stock-board');
+            if(round === 0) {
+                board.classList.add('hidden');
+                return;
+            }
+            board.classList.remove('hidden');
+            document.getElementById('tea-round-title').textContent = gameData[round].name;
+            const grid = document.getElementById('tea-stock-grid');
+            grid.innerHTML = "";
+            for(let comp in gameData[round].stocks) {
+                let price = gameData[round].stocks[comp];
+                if(price === 0) continue;
+                grid.innerHTML += `<div class="bg-slate-900 p-3 rounded-lg text-center border border-slate-700"><p class="text-xs text-slate-400 mb-1">${comp}</p><p class="font-bold text-emerald-400">${price.toLocaleString()}원</p></div>`;
+            }
+        }
+
         function viewStudentPortfolio(name) {
             const data = localBalances[name];
             document.getElementById('modal-tea-pf-title').textContent = `${name} 님의 투자 내역`;
@@ -537,7 +546,6 @@
         function showStockHistoryModal() { document.getElementById('modal-stock-history').classList.remove('hidden'); renderStockHistoryChart('modal-history-chart', Math.max(1, globalSystemState.round)); }
         function closeStockHistoryModal() { document.getElementById('modal-stock-history').classList.add('hidden'); }
 
-        // --- 애니메이션 (롤링 & 최고/최저 뱃지) ---
         let rankInterval;
         function animateRollingNumber(el, start, end, duration) {
             let startTimestamp = null;
@@ -561,7 +569,6 @@
             const grid = document.getElementById('stock-changes-grid'); grid.innerHTML = "";
             const rData = gameData[round];
 
-            // 최고, 최저 계산 로직 추가
             let maxPct = -9999, minPct = 9999;
             for(let comp in rData.stocks) {
                 if(rData.stocks[comp] === 0) continue;
@@ -657,41 +664,48 @@
 
         function closeResultAnim() { clearInterval(rankInterval); document.getElementById('view-result-anim').classList.add('hidden'); }
 
-        // --- A4 인쇄 ---
         function preparePrintData() {
             const round = globalSystemState.round; if(round === 0) return alert("결과가 있는 라운드를 선택해 주세요.");
             document.getElementById('print-title').textContent = `${gameData[round].name} 주식레이스 최종 정산 보고서`;
             
-            const marketTable = document.getElementById('print-market-summary');
-            marketTable.innerHTML = `<tr><th style="width:20%">기업명</th><th style="width:25%">이전 주가</th><th style="width:30%">결과 주가</th><th style="width:25%">등락률</th></tr>`;
-            const rData = gameData[round];
-            for(let comp in rData.stocks) {
-                if(rData.stocks[comp] === 0) continue;
-                const oldP = rData.stocks[comp]; const newP = rData.nextPrices[comp] !== undefined ? rData.nextPrices[comp] : oldP;
-                const pct = Math.round(((newP - oldP)/oldP)*100);
-                marketTable.innerHTML += `<tr><td class="font-bold">${comp}</td><td>${oldP.toLocaleString()}원</td><td class="font-bold">${newP.toLocaleString()}원</td><td>${pct>0?'+':''}${pct}%</td></tr>`;
-            }
+            let theadHtml = `<tr><th>순위</th><th>이름</th>`;
+            allCompaniesList.forEach(c => { theadHtml += `<th>${c}</th>`; });
+            theadHtml += `<th>저축통장</th><th>남은돈</th><th>이전 자산</th><th>결과 자산</th><th>수익률</th></tr>`;
+            document.getElementById('print-full-thead').innerHTML = theadHtml;
 
             renderStockHistoryChart('print-history-chart', round);
-            const tbody = document.getElementById('print-tbody'); tbody.innerHTML = "";
+            
+            const tbody = document.getElementById('print-full-tbody'); tbody.innerHTML = "";
             let sorted = [];
             for(let id in userRegistry) {
-                let n = userRegistry[id].name; let d = localBalances[n] || { netWorth: 300000, lastSeed: 300000, portfolio: {bank:0, stocks:{}} };
+                let n = userRegistry[id].name; let d = localBalances[n] || { netWorth: 300000, lastSeed: 300000, portfolio: {bank:0, stocks:{}, leftover:0} };
                 sorted.push({ name:n, data:d });
             }
             sorted.sort((a, b) => b.data.netWorth - a.data.netWorth);
 
             sorted.forEach((item, index) => {
-                let pfString = "";
-                if(item.data.portfolio?.stocks) { for(let k in item.data.portfolio.stocks) pfString += `[${k}] ${item.data.portfolio.stocks[k]}주, `; }
-                pfString = pfString ? pfString.slice(0, -2) : "-";
+                let pf = item.data.portfolio || { stocks: {}, bank: 0, leftover: 0 };
+                let stocksHtml = "";
+                allCompaniesList.forEach(c => {
+                    let qty = pf.stocks && pf.stocks[c] ? pf.stocks[c] : "";
+                    stocksHtml += `<td>${qty}</td>`;
+                });
+                
                 let roi = item.data.lastSeed > 0 ? Math.round(((item.data.netWorth - item.data.lastSeed) / item.data.lastSeed) * 100) : 0;
+                let lastSeed = item.data.lastSeed || 300000;
+                let bank = pf.bank || 0;
+                let leftover = pf.leftover || 0;
                 
                 tbody.innerHTML += `
                     <tr>
-                        <td class="font-bold">${index + 1}</td><td class="font-bold text-left">${item.name}</td><td class="text-right">${(item.data.lastSeed || 300000).toLocaleString()}</td>
-                        <td class="text-left" style="font-size: 8pt; line-height: 1.2;">${pfString}</td><td class="text-right">${(item.data.portfolio?.bank || 0).toLocaleString()}</td>
-                        <td class="font-bold ${roi > 0 ? 'text-rose-600' : ''}">${roi > 0 ? '+'+roi : roi}%</td><td class="text-right font-bold" style="background-color: #f8fafc;">${item.data.netWorth.toLocaleString()}</td>
+                        <td class="font-bold">${index + 1}</td>
+                        <td class="font-bold text-left">${item.name}</td>
+                        ${stocksHtml}
+                        <td class="text-right">${bank.toLocaleString()}</td>
+                        <td class="text-right">${leftover.toLocaleString()}</td>
+                        <td class="text-right">${lastSeed.toLocaleString()}</td>
+                        <td class="text-right font-bold" style="background-color: #f8fafc;">${item.data.netWorth.toLocaleString()}</td>
+                        <td class="font-bold ${roi > 0 ? 'text-rose-600' : ''}">${roi > 0 ? '+'+roi : roi}%</td>
                     </tr>
                 `;
             });
