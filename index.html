@@ -4,9 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>대한민국 산업화 주식레이스</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;700;900&display=swap');
@@ -31,6 +34,7 @@
 </head>
 <body class="text-gray-800 antialiased">
 
+    <!-- 1. 로그인 화면 -->
     <div id="view-login" class="min-h-screen flex items-center justify-center bg-slate-900 px-4 relative">
         <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md">
             <h1 class="text-2xl font-black text-center text-slate-800 mb-2">📊 주식레이스 참가</h1>
@@ -47,9 +51,11 @@
                 <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold p-3.5 rounded-xl transition shadow-lg">입장하기</button>
             </div>
         </div>
+        <!-- 톱니바퀴 우측 하단 -->
         <button onclick="teacherLoginPrompt()" class="absolute bottom-5 right-5 text-slate-600 hover:text-white opacity-50 hover:opacity-100 transition text-xs font-bold z-50 p-2">⚙️</button>
     </div>
 
+    <!-- 2. 학생용 화면 -->
     <div id="view-student" class="hidden min-h-screen bg-gray-50 pb-12">
         <header class="bg-white border-b border-gray-200 sticky top-0 z-10 no-print shadow-sm">
             <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
@@ -122,6 +128,7 @@
         </main>
     </div>
 
+    <!-- 3. 교사용 대시보드 -->
     <div id="view-teacher" class="hidden min-h-screen bg-slate-900 text-slate-100 p-6 no-print">
         <header class="max-w-7xl mx-auto flex justify-between items-center border-b border-slate-800 pb-4 mb-6">
             <div>
@@ -176,6 +183,7 @@
         </main>
     </div>
 
+    <!-- 4. 결과 애니메이션 화면 -->
     <div id="view-result-anim" class="hidden fixed inset-0 z-50 bg-slate-900 overflow-y-auto no-print">
         <div class="sticky top-0 bg-slate-900/90 p-4 flex justify-between z-10 border-b border-slate-800 backdrop-blur">
             <h2 id="anim-title" class="text-2xl font-black text-amber-400">결과 공개</h2>
@@ -211,6 +219,7 @@
         </div>
     </div>
 
+    <!-- 5. 모달 -->
     <div id="modal-stock-history" class="hidden fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4 no-print">
         <div class="bg-white rounded-2xl w-full max-w-4xl p-6 relative">
             <button onclick="closeStockHistoryModal()" class="absolute top-4 right-4 text-gray-500 hover:text-black font-black text-xl">✕</button>
@@ -229,6 +238,7 @@
         </div>
     </div>
 
+    <!-- 6. A4 인쇄 영역 (세로 방향, 완벽 압축형) -->
     <div id="print-area" class="hidden print-area bg-white text-black">
         <h1 id="print-title" style="font-size: 14pt; font-weight: 900; text-align: center; border-bottom: 2px solid #000; padding-bottom: 5px; margin-bottom: 10px;"></h1>
         
@@ -279,7 +289,6 @@
         let studentChart = null;
         let isFirstLoad = true;
 
-        // 그래프 렌더링 - 신규 추가 종목(단일 점) 표시 옵션 강화
         function renderStockHistoryChart(canvasId, targetRound, sysStatus) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             let labels = ['시작']; for(let i=1; i<=targetRound; i++) labels.push(i+'R');
@@ -307,7 +316,7 @@
                     label: comp, data: data, 
                     borderColor: colors[idx%colors.length], backgroundColor: colors[idx%colors.length], 
                     borderWidth: 2, tension: 0.1, spanGaps: true, 
-                    pointRadius: 4, pointHoverRadius: 6 // 단일 점(신규주식)도 명확히 보이도록 설정
+                    pointRadius: 4, pointHoverRadius: 6
                 });
             });
             const existingChart = Chart.getChart(canvasId); if(existingChart) existingChart.destroy();
@@ -372,7 +381,6 @@
                     waitScreen.classList.remove('hidden'); investScreen.classList.add('hidden');
                     setWaitMessage("제출 완료!", "다른 친구들이 끝날 때까지 대기해주세요.", "✅", false);
                     
-                    // 호환성 업데이트: 과거 데이터(history_pf가 없는 경우)도 포트폴리오를 끌어오도록 수정
                     const pf = localBalances[currentUser.name].history_pf?.[round] || localBalances[currentUser.name].portfolio; 
                     let pfHtml = "";
                     if(pf) {
@@ -561,23 +569,29 @@
                 const record = localBalances[name] || {};
                 
                 let isSubmittedForView = false;
-                let lightClass, bgClass, borderClass, statusText;
 
-                // 선택한 라운드에 대한 제출 여부 판단 (과거 라운드도 포트폴리오 폴백으로 표시 호환성 확보)
-                if (viewRound > 0 && (record.history_pf?.[viewRound] || (viewRound <= currentSysRound && record.portfolio))) {
-                    isSubmittedForView = true;
-                } else if (viewRound === currentSysRound && record.submitted) {
-                    isSubmittedForView = true;
+                // 핵심 버그 수정: 제출 여부 판단 로직 명확화
+                if (viewRound > 0) {
+                    if (viewRound === currentSysRound) {
+                        // 현재 라운드는 오직 제출버튼 상태만 확인
+                        isSubmittedForView = !!record.submitted;
+                    } else if (viewRound < currentSysRound) {
+                        // 과거 라운드는 기록 존재 여부 확인
+                        isSubmittedForView = !!(record.history_pf?.[viewRound] || record.history?.[viewRound]);
+                    }
                 }
 
-                if(isSubmittedForView) count++;
+                if(isSubmittedForView && viewRound === currentSysRound) count++; 
+                else if (isSubmittedForView && viewRound !== currentSysRound) count++; 
 
-                if (viewRound === 0) {
+                let lightClass, bgClass, borderClass, statusText;
+
+                if (viewRound === 0 || currentSysStatus === 'closed') {
                     lightClass = 'bg-rose-500'; bgClass = 'bg-slate-800'; borderClass = 'border-slate-700'; statusText = '대기 중';
+                } else if (viewRound === currentSysRound && currentSysStatus === 'investing' && !isSubmittedForView) {
+                    lightClass = 'bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]'; bgClass = 'bg-slate-800'; borderClass = 'border-amber-500/50'; statusText = '고민 중';
                 } else if (isSubmittedForView) {
                     lightClass = 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]'; bgClass = 'bg-emerald-900/30'; borderClass = 'border-emerald-500'; statusText = '제출 완료';
-                } else if (viewRound === currentSysRound && currentSysStatus === 'investing') {
-                    lightClass = 'bg-amber-400 animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.8)]'; bgClass = 'bg-slate-800'; borderClass = 'border-amber-500/50'; statusText = '고민 중';
                 } else {
                     lightClass = 'bg-rose-500'; bgClass = 'bg-slate-800'; borderClass = 'border-slate-700'; statusText = '미제출';
                 }
@@ -616,9 +630,9 @@
             for(let comp in gameData[round].stocks) {
                 let price = gameData[round].stocks[comp]; if(price === 0) continue;
                 grid.innerHTML += `
-                <div class="bg-slate-900 p-4 rounded-xl flex justify-between items-center border border-slate-700 shadow-sm">
-                    <span class="text-xl font-bold text-slate-200">${comp}</span>
-                    <span class="text-2xl font-black text-emerald-400">${price.toLocaleString()}원</span>
+                <div class="bg-slate-900 p-3 rounded-xl flex justify-between items-center border border-slate-700 shadow-sm">
+                    <span class="text-base font-bold text-slate-200">${comp}</span>
+                    <span class="text-lg font-black text-emerald-400">${price.toLocaleString()}원</span>
                 </div>`;
             }
         }
@@ -627,8 +641,9 @@
             const data = localBalances[name];
             document.getElementById('modal-tea-pf-title').textContent = `${name} 님의 ${viewRound}R 투자 내역`;
             let html = "";
-            // 호환성: 해당 라운드 기록이 없어도, 전체 기록이 남아있는 상태라면 가져옴
-            const pf = data?.history_pf?.[viewRound] || data?.portfolio;
+            
+            // 호환성 포함 과거 기록 우선, 없으면 포트폴리오
+            const pf = data?.history_pf?.[viewRound] || (viewRound === globalSystemState.round ? data?.portfolio : null);
             
             if(pf) {
                 if(pf.bank > 0) html += `<p>🏦 은행 저축: <span class="text-blue-600 font-black">${pf.bank.toLocaleString()}원</span></p>`;
@@ -789,7 +804,6 @@
 
         function closeResultAnim() { clearInterval(rankInterval); document.getElementById('view-result-anim').classList.add('hidden'); }
 
-        // --- A4 세로(Portrait) 인쇄 완전 압축 모드 ---
         function preparePrintData() {
             const round = parseInt(document.getElementById('tea-round-select').value); if(round === 0) return alert("인쇄할 라운드를 선택해 주세요.");
             document.getElementById('print-title').textContent = `${gameData[round].name} 주식레이스 정산 보고서`;
@@ -809,7 +823,7 @@
                 let prev = round > 1 ? (d.history?.[round-1] || 300000) : 300000;
                 sorted.push({ name:n, data:d, netWorth, prev });
             }
-            sorted.sort((a, b) => b.netWorth - a.netWorth);
+            sorted.sort((a, b) => b.data.netWorth - a.data.netWorth);
 
             sorted.forEach((item, index) => {
                 let pf = item.data.history_pf?.[round] || item.data.portfolio || { stocks: {}, bank: 0, leftover: 0 };
@@ -822,7 +836,7 @@
                 let roi = item.prev > 0 ? Math.round(((item.netWorth - item.prev) / item.prev) * 100) : 0;
                 let bank = pf.bank || 0;
                 let leftover = pf.leftover || 0;
-                let displayName = item.name.replace(/^[0-9]+/, ''); // 앞 숫자 제거하여 이름 줄이기
+                let displayName = item.name.replace(/^[0-9]+/, ''); 
                 
                 tbody.innerHTML += `
                     <tr>
